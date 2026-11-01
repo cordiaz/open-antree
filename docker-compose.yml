@@ -1,0 +1,42 @@
+# Development infrastructure for Open Antree.
+#   cp .env.example .env
+#   docker compose up -d
+# Ports are bound to 127.0.0.1 only; neither service should be exposed publicly.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: open-antree-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-antree}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-antree}
+      POSTGRES_DB: ${POSTGRES_DB:-antree}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    container_name: open-antree-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
