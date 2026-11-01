@@ -7,7 +7,10 @@ import { RedisModule } from './redis/redis.module.js';
 @Module({
   imports: [
     // apps/api/.env first, then the shared .env at the monorepo root.
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../../.env'] }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '../../.env'],
+    }),
     DatabaseModule,
     RedisModule,
     HealthModule,
