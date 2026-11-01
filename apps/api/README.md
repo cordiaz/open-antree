@@ -34,9 +34,24 @@ To change the schema: edit `schema.ts`, run `pnpm db:generate --name <change>`, 
 
 ## Endpoints
 
+All tenant endpoints are addressed by the tenant's `slug` and only ever touch that tenant's rows.
+
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/health` | `200` with `{ status: "ok", checks: { database, redis } }` when both are reachable, `503` naming the one that is down otherwise |
+| GET | `/tenants/:slug` | Tenant with its active branches, services and counters |
+| GET | `/tenants/:slug/queue?branchId=` | Public queue board per service: tickets being served, number waiting, rough wait estimate. Defaults to the tenant's first branch |
+| POST | `/tenants/:slug/tickets` | Take a ticket: `{ serviceId, customerName?, customerPhone? }` |
+| GET | `/tenants/:slug/tickets/:ticketId` | Ticket status, people ahead and estimated wait |
+| GET | `/tenants/:slug/counters/:counterId` | Operator console: the counter's current ticket and the branch's waiting line |
+| POST | `/tenants/:slug/counters/:counterId/call-next` | Call the oldest waiting ticket to this counter (optional `{ serviceId }`). `409` if the counter is still handling a ticket; `{ ticket: null }` if nobody is waiting |
+| POST | `/tenants/:slug/tickets/:ticketId/start` | `called` → `serving` |
+| POST | `/tenants/:slug/tickets/:ticketId/complete` | `called`/`serving` → `completed` |
+| POST | `/tenants/:slug/tickets/:ticketId/skip` | `called` → `skipped` (customer didn't show up) |
+
+Invalid transitions return `409`. Ticket numbers are assigned under a per-service, per-day advisory lock, and `call-next` uses `FOR UPDATE SKIP LOCKED`, so concurrent customers and counters never get duplicate numbers or the same ticket.
+
+> **Not authenticated yet.** Operator endpoints are open to anyone who knows a counter or ticket id. Authentication is a later phase.
 
 ## Scripts
 
@@ -48,7 +63,7 @@ To change the schema: edit `schema.ts`, run `pnpm db:generate --name <change>`, 
 | `pnpm lint` | oxlint (type-aware) |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm test` | Unit tests (vitest) |
-| `pnpm test:e2e` | End-to-end tests (vitest + supertest) |
+| `pnpm test:e2e` | End-to-end tests (vitest + supertest); `test/queue.e2e-spec.ts` needs the docker-compose PostgreSQL running |
 | `pnpm db:generate` | Generate a SQL migration from schema changes |
 | `pnpm db:migrate` | Apply pending migrations |
 | `pnpm db:seed` | Recreate the demo tenant `salon-mawar` with today's tickets |
