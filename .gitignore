@@ -9,6 +9,7 @@ node_modules/
 # Next.js
 .next/
 out/
+next-env.d.ts
 
 # Build
 dist/
@@ -36,3 +37,4 @@ pnpm-debug.log*
 # Temporary
 tmp/
 temp/
+*.swp
