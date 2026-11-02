@@ -76,6 +76,34 @@ export type BranchStats = {
   averageWaitMinutes: number | null;
 };
 
+// Counts and averages (minutes) for a set of tickets; see apps/api reports.
+export type ReportMetrics = {
+  total: number;
+  completed: number;
+  skipped: number;
+  unfinished: number;
+  avgWaitMinutes: number | null;
+  avgServiceMinutes: number | null;
+};
+
+export type Report = {
+  from: string;
+  to: string;
+  timezone: string;
+  branch: { id: string; name: string } | null;
+  summary: ReportMetrics;
+  daily: (ReportMetrics & { date: string })[];
+  byService: (ReportMetrics & {
+    serviceId: string;
+    name: string;
+    ticketPrefix: string;
+  })[];
+  byCounter: (ReportMetrics & { counterId: string; name: string })[];
+  byHour: { hour: number; total: number }[];
+};
+
+export type ReportQuery = { from?: string; to?: string; branchId?: string };
+
 export type AuthUser = {
   id: string;
   name: string;
@@ -190,8 +218,17 @@ export function createApi(init: RequestInit = {}) {
     logout: (slug: string) =>
       call<null>(`${tenantPath(slug)}/auth/logout`, { method: "POST" }),
 
-    // Admin-only tenant configuration.
+    // Admin-only tenant configuration and reports.
     admin: {
+      report: (slug: string, query: ReportQuery = {}) => {
+        const params = new URLSearchParams(
+          Object.entries(query).filter((entry): entry is [string, string] =>
+            Boolean(entry[1]),
+          ),
+        );
+        const search = params.size ? `?${params}` : "";
+        return call<Report>(`${tenantPath(slug)}/admin/reports${search}`);
+      },
       services: (slug: string) =>
         call<ManagedService[]>(`${tenantPath(slug)}/admin/services`),
       createService: (

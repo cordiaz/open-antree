@@ -8,6 +8,7 @@ const TABS = [
   { href: "/services", label: "Layanan" },
   { href: "/counters", label: "Loket" },
   { href: "/users", label: "Akun Staf" },
+  { href: "/reports", label: "Laporan" },
 ];
 
 export function AdminNav({ slug }: { slug: string }) {

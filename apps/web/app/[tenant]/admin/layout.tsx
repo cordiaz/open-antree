@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, orNull } from "@/lib/api";
-import { requireUser } from "@/lib/server-api";
+import { currentUser } from "@/lib/server-api";
 import { LogoutButton } from "../logout-button";
 import { AdminNav } from "./admin-nav";
 
-// Shared header and tabs for the admin area. Each page still checks the
-// session itself, since layouts don't re-run on every navigation.
+// Shared header and tabs for the admin area. Each page checks the session
+// itself, since layouts don't re-run on every navigation, and redirects to
+// login with its own path so the admin lands back on it.
 export default async function AdminLayout({
   params,
   children,
@@ -16,7 +17,11 @@ export default async function AdminLayout({
   if (!tenant) {
     notFound();
   }
-  const user = await requireUser(slug, `/${slug}/admin`, ["admin"]);
+  const user = await currentUser(slug);
+  if (user?.role !== "admin") {
+    // Not an admin: render no admin chrome; the page redirects.
+    return children;
+  }
 
   return (
     <main className="min-h-screen bg-slate-50">
