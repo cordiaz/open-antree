@@ -54,7 +54,22 @@ Invalid transitions return `409`. Ticket numbers are assigned under a per-servic
 
 Staff endpoints (counters, ticket transitions, stats) require a session for the tenant in the URL; customer endpoints stay public.
 
-## Authentication
+## Realtime updates
+
+`GET /tenants/:slug/events` is a [Server-Sent Events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) stream of the tenant's queue changes:
+
+```
+event: queue
+data: {"type":"ticket.called","branchId":"…","ticketId":"…","at":"2026-11-02T10:19:09.842Z"}
+```
+
+- Types: `ticket.created`, `ticket.called`, `ticket.updated`, `config.updated` (services/counters changed), `staff.updated` (a password reset or deactivation ended sessions).
+- Events carry ids only, never customer data, so the stream is public like the queue board. Clients refetch what they display.
+- Changes are published to Redis (`queue-events:<tenantId>`), so every API instance delivers every change, whichever instance handled the request. Each process holds one Redis subscription per tenant with open streams, released when the last client leaves.
+- A comment line every 25 s keeps idle connections alive through proxies; on shutdown open streams are ended so the process can exit and browsers reconnect to the new one.
+- Publishing never fails a request: if Redis is unavailable the change still happens and clients catch up through fallback polling.
+
+
 
 | Method | Path | Description |
 | --- | --- | --- |

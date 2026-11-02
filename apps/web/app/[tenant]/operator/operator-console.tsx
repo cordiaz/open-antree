@@ -4,9 +4,8 @@ import { useCallback, useState } from "react";
 import { api, type CounterConsole } from "@/lib/api";
 import { statusLabel } from "@/lib/labels";
 import { redirectToLoginIfUnauthorized } from "@/lib/session-client";
-import { usePolling } from "@/lib/use-polling";
-
-const POLL_MS = 3000;
+import { useLiveData } from "@/lib/use-queue-events";
+import { LiveIndicator } from "../live-indicator";
 
 export function OperatorConsole({
   slug,
@@ -20,11 +19,12 @@ export function OperatorConsole({
     () => api.counter(slug, counterId),
     [slug, counterId],
   );
-  const { data, error: pollError, refresh } = usePolling(
-    fetchConsole,
-    POLL_MS,
-    initialConsole,
-  );
+  const {
+    data,
+    error: pollError,
+    refresh,
+    connected,
+  } = useLiveData(slug, fetchConsole, initialConsole);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -106,9 +106,12 @@ export function OperatorConsole({
       </section>
 
       <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Waiting Queue ({data.waiting.length})
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Waiting Queue ({data.waiting.length})
+          </h2>
+          <LiveIndicator connected={connected} />
+        </div>
         <div className="mt-5 space-y-3">
           {data.waiting.length === 0 && (
             <p className="text-sm text-slate-500">Antrian kosong.</p>

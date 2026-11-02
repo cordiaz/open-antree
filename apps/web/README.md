@@ -25,7 +25,7 @@ Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the
 | `/[tenant]/admin/counters` | Admins | Add, rename, activate or deactivate counters |
 | `/[tenant]/admin/users` | Admins | Add staff accounts, change name / role, reset passwords, activate or deactivate |
 
-Pages render their first data on the server and then refresh by polling (queue 5 s, operator 3 s, admin 10 s).
+Pages render their first data on the server, then stay current through the API's live event stream (`lib/use-queue-events.ts`): on every queue change they refetch, usually within half a second. A "Live" indicator shows the connection; if the stream drops, the page reconnects with backoff (3 s up to 30 s) and refetches on reconnect. Polling every 30 s remains as a safety net.
 
 Operator and admin pages redirect to `/[tenant]/login` without a session (and operators are sent away from `/admin`). Server pages forward the visitor's cookies to the API (`lib/server-api.ts`); if a session ends while a page is open, the next poll sends the user back to the login page.
 

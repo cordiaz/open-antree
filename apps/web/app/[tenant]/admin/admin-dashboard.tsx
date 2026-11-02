@@ -2,9 +2,8 @@
 
 import { useCallback } from "react";
 import { api, type BranchStats } from "@/lib/api";
-import { usePolling } from "@/lib/use-polling";
-
-const POLL_MS = 10000;
+import { useLiveData } from "@/lib/use-queue-events";
+import { LiveIndicator } from "../live-indicator";
 
 export function AdminDashboard({
   slug,
@@ -14,7 +13,11 @@ export function AdminDashboard({
   initialStats: BranchStats;
 }) {
   const fetchStats = useCallback(() => api.stats(slug), [slug]);
-  const { data: stats, error } = usePolling(fetchStats, POLL_MS, initialStats);
+  const {
+    data: stats,
+    error,
+    connected,
+  } = useLiveData(slug, fetchStats, initialStats);
 
   const tiles = [
     { label: "Waiting", value: String(stats.tickets.waiting) },
@@ -34,6 +37,9 @@ export function AdminDashboard({
       <p className="mb-4 text-sm text-slate-500">
         Hari ini ({stats.serviceDate}) · {stats.branch.name}
         {error && <span className="ml-2 text-red-600">· {error}</span>}
+        <span className="ml-3">
+          <LiveIndicator connected={connected} />
+        </span>
       </p>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((tile) => (

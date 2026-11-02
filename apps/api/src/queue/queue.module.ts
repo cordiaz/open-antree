@@ -6,5 +6,6 @@ import { QueueService } from './queue.service.js';
 @Module({
   controllers: [PublicController, OperatorController],
   providers: [QueueService],
+  exports: [QueueService],
 })
 export class QueueModule {}

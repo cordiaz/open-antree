@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { and, asc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
+import { EventsService } from '../events/events.service.js';
 import {
   branches,
   counters,
@@ -56,7 +57,10 @@ const TRANSITIONS: Record<
 // change another tenant's rows, even with a valid id.
 @Injectable()
 export class QueueService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly events: EventsService,
+  ) {}
 
   private get db() {
     return this.database.db;
@@ -233,6 +237,11 @@ export class QueueService {
       return created;
     });
 
+    await this.events.publish(tenant.id, {
+      type: 'ticket.created',
+      branchId: ticket.branchId,
+      ticketId: ticket.id,
+    });
     return this.describeTicket(ticket);
   }
 
@@ -363,7 +372,15 @@ export class QueueService {
       return updated;
     });
 
-    return { ticket: called ? await this.describeTicket(called) : null };
+    if (!called) {
+      return { ticket: null };
+    }
+    await this.events.publish(tenant.id, {
+      type: 'ticket.called',
+      branchId: called.branchId,
+      ticketId: called.id,
+    });
+    return { ticket: await this.describeTicket(called) };
   }
 
   async transitionTicket(slug: string, ticketId: string, action: TicketAction) {
@@ -389,6 +406,11 @@ export class QueueService {
         `Tiket ${existing.code} tidak bisa ${ACTION_LABEL[action]} karena statusnya ${STATUS_LABEL[existing.status]}`,
       );
     }
+    await this.events.publish(tenant.id, {
+      type: 'ticket.updated',
+      branchId: updated.branchId,
+      ticketId: updated.id,
+    });
     return this.describeTicket(updated);
   }
 
