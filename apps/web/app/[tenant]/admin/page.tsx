@@ -20,6 +20,7 @@ export default async function AdminPage({
     { href: `/${slug}/admin/services`, label: "Kelola Layanan" },
     { href: `/${slug}/admin/counters`, label: "Kelola Loket" },
     { href: `/${slug}/admin/users`, label: "Kelola Akun Staf" },
+    { href: `/${slug}/admin/reports`, label: "Laporan" },
   ];
 
   return (
@@ -59,14 +60,6 @@ export default async function AdminPage({
                 {action.label}
               </Link>
             ))}
-            <button
-              type="button"
-              disabled
-              title="Tersedia di tahap berikutnya"
-              className="cursor-not-allowed rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-400"
-            >
-              Laporan (segera)
-            </button>
           </div>
         </section>
       </div>

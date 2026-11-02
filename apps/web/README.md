@@ -24,6 +24,7 @@ Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the
 | `/[tenant]/admin/services` | Admins | Add services, edit name / prefix / average minutes, activate or deactivate |
 | `/[tenant]/admin/counters` | Admins | Add, rename, activate or deactivate counters |
 | `/[tenant]/admin/users` | Admins | Add staff accounts, change name / role, reset passwords, activate or deactivate |
+| `/[tenant]/admin/reports` | Admins | Tickets per day, arrival hours, per service / counter figures for a date range (presets or `?from=&to=&branch=`), with CSV download of the daily table |
 
 Pages render their first data on the server, then stay current through the API's live event stream (`lib/use-queue-events.ts`): on every queue change they refetch, usually within half a second. A "Live" indicator shows the connection; if the stream drops, the page reconnects with backoff (3 s up to 30 s) and refetches on reconnect. Polling every 30 s remains as a safety net.
 

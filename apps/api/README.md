@@ -109,6 +109,22 @@ USER_PASSWORD='...' pnpm user:create --tenant salon-mawar --email budi@example.c
 
 The demo seed creates `admin@salon-mawar.test` and `operator@salon-mawar.test` with password `antree-demo` (override with `SEED_PASSWORD`).
 
+## Reports
+
+`GET /tenants/:slug/admin/reports?from=YYYY-MM-DD&to=YYYY-MM-DD&branchId=<uuid>` (admins only) summarises ticket history. All parameters are optional: without them the report covers the last 7 days up to today in the tenant's timezone, across all branches. A range may span at most 92 days; invalid dates, a reversed range or a longer one return `400`, an unknown branch `404`.
+
+The response contains a `summary` and the same figures `daily` (every day of the range, including empty ones), `byService`, `byCounter` (tickets each counter called) and `byHour` (tickets taken per hour of day, 0–23, in the tenant's timezone):
+
+| Field | Meaning |
+| --- | --- |
+| `total` | Tickets taken |
+| `completed` / `skipped` | Finished as completed / skipped (no-show) |
+| `unfinished` | Neither: still in the queue, or left over when the day ended |
+| `avgWaitMinutes` | From taking a ticket to being called |
+| `avgServiceMinutes` | From starting service (or the call, if service was never started) to completion |
+
+Averages are `null` when no ticket qualifies. Reports contain counts and times only, never customer names or phone numbers.
+
 ## Scripts
 
 | Script | Description |
@@ -122,6 +138,6 @@ The demo seed creates `admin@salon-mawar.test` and `operator@salon-mawar.test` w
 | `pnpm test:e2e` | End-to-end tests (vitest + supertest); most need the docker-compose PostgreSQL and Redis running |
 | `pnpm db:generate` | Generate a SQL migration from schema changes |
 | `pnpm db:migrate` | Apply pending migrations |
-| `pnpm db:seed` | Recreate the demo tenant `salon-mawar` with today's tickets |
+| `pnpm db:seed` | Recreate the demo tenant `salon-mawar` with today's tickets and 13 days of finished history (for reports) |
 | `pnpm user:create` | Create a staff account (see Authentication) |
 | `pnpm db:studio` | Open Drizzle Studio to browse the database |
