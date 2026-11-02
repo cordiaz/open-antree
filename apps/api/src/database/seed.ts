@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { hashPassword } from '../auth/password.js';
 import * as schema from './schema.js';
 
 // Demo data matching the apps/web mockups (tenant "salon-mawar").
@@ -8,6 +9,8 @@ import * as schema from './schema.js';
 // Run with `pnpm db:seed`.
 
 const DEMO_SLUG = 'salon-mawar';
+// Development only. Override with SEED_PASSWORD.
+const DEMO_PASSWORD = process.env.SEED_PASSWORD ?? 'antree-demo';
 const TIMEZONE = 'Asia/Jakarta';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -72,6 +75,24 @@ try {
       ])
       .returning();
 
+    const passwordHash = await hashPassword(DEMO_PASSWORD);
+    await tx.insert(schema.users).values([
+      {
+        tenantId,
+        email: 'admin@salon-mawar.test',
+        name: 'Admin Salon Mawar',
+        passwordHash,
+        role: 'admin',
+      },
+      {
+        tenantId,
+        email: 'operator@salon-mawar.test',
+        name: 'Operator Salon Mawar',
+        passwordHash,
+        role: 'operator',
+      },
+    ]);
+
     const base = { tenantId, branchId, serviceDate: today };
     // Spread timestamps over the past few hours so the dashboard's average
     // wait looks realistic; creation order matches ticket numbers.
@@ -131,6 +152,10 @@ try {
   });
 
   console.log(`Seeded demo tenant "${DEMO_SLUG}" for ${today}.`);
+  console.log(
+    'Logins: admin@salon-mawar.test / operator@salon-mawar.test' +
+      (process.env.SEED_PASSWORD ? '' : ` (password: ${DEMO_PASSWORD})`),
+  );
 } finally {
   await pool.end();
 }

@@ -18,12 +18,13 @@ Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the
 | --- | --- | --- |
 | `/` | Everyone | Landing page |
 | `/[tenant]/queue` | Customers | Pick a service, take a ticket, follow its status (ticket is remembered in the browser) |
-| `/[tenant]/operator` | Operators | Choose a counter, then call / start / skip / complete tickets |
-| `/[tenant]/admin` | Tenant admins | Today's numbers for the branch and business details |
+| `/[tenant]/login` | Staff | Login for operators and admins; returns to the page that asked for it |
+| `/[tenant]/operator` | Operators, admins | Choose a counter, then call / start / skip / complete tickets |
+| `/[tenant]/admin` | Admins | Today's numbers for the branch and business details |
 
 Pages render their first data on the server and then refresh by polling (queue 5 s, operator 3 s, admin 10 s).
 
-> The operator and admin pages have no login yet. Don't expose them publicly until authentication is added.
+Operator and admin pages redirect to `/[tenant]/login` without a session (and operators are sent away from `/admin`). Server pages forward the visitor's cookies to the API (`lib/server-api.ts`); if a session ends while a page is open, the next poll sends the user back to the login page.
 
 ## Talking to the API
 

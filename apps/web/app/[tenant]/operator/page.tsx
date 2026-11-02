@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, orNull } from "@/lib/api";
+import { requireUser, serverApi } from "@/lib/server-api";
+import { LogoutButton } from "../logout-button";
 import { OperatorConsole } from "./operator-console";
 
 export default async function OperatorPage({
@@ -16,7 +18,14 @@ export default async function OperatorPage({
     notFound();
   }
 
-  const counter = counterId ? await orNull(api.counter(slug, counterId)) : null;
+  const user = await requireUser(
+    slug,
+    `/${slug}/operator${counterId ? `?counter=${counterId}` : ""}`,
+  );
+  const staffApi = await serverApi();
+  const counter = counterId
+    ? await orNull(staffApi.counter(slug, counterId))
+    : null;
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -30,20 +39,43 @@ export default async function OperatorPage({
               Operator Console
             </h1>
           </div>
-          {counter && (
-            <div className="text-right">
-              <p className="text-sm text-slate-500">Counter</p>
-              <p className="font-semibold text-slate-900">
-                {counter.counter.name}
-              </p>
-              <Link
-                href={`/${slug}/operator`}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Ganti counter
-              </Link>
-            </div>
-          )}
+          <div className="text-right">
+            {counter && (
+              <>
+                <p className="text-sm text-slate-500">Counter</p>
+                <p className="font-semibold text-slate-900">
+                  {counter.counter.name}
+                </p>
+              </>
+            )}
+            <p className="text-xs text-slate-500">
+              {user.name}
+              {counter && (
+                <>
+                  {" · "}
+                  <Link
+                    href={`/${slug}/operator`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Ganti counter
+                  </Link>
+                </>
+              )}
+              {user.role === "admin" && (
+                <>
+                  {" · "}
+                  <Link
+                    href={`/${slug}/admin`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Dashboard
+                  </Link>
+                </>
+              )}
+              {" · "}
+              <LogoutButton slug={slug} />
+            </p>
+          </div>
         </div>
       </header>
 

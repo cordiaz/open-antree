@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { redirectToLoginIfUnauthorized } from "./session-client";
 
 // Keeps data fresh by re-fetching on an interval (paused while the tab is
 // hidden). Realtime push can replace this later without changing callers.
@@ -22,6 +23,7 @@ export function usePolling<T>(
       setData(await fetcherRef.current());
       setError(null);
     } catch (e) {
+      if (redirectToLoginIfUnauthorized(e)) return;
       setError(e instanceof Error ? e.message : "Gagal memuat data");
     }
   }, []);

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { api, type CounterConsole } from "@/lib/api";
 import { statusLabel } from "@/lib/labels";
+import { redirectToLoginIfUnauthorized } from "@/lib/session-client";
 import { usePolling } from "@/lib/use-polling";
 
 const POLL_MS = 3000;
@@ -33,6 +34,7 @@ export function OperatorConsole({
     try {
       await action();
     } catch (e) {
+      if (redirectToLoginIfUnauthorized(e)) return;
       setMessage(e instanceof Error ? e.message : "Aksi gagal");
     } finally {
       await refresh();

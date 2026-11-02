@@ -23,7 +23,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/database/migrate.ts",
     "db:seed": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/database/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "user:create": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env src/database/create-user.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
