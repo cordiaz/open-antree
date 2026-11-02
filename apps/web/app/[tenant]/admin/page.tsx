@@ -1,28 +1,42 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, orNull } from "@/lib/api";
+import { requireUser, serverApi } from "@/lib/server-api";
+import { LogoutButton } from "../logout-button";
 import { AdminDashboard } from "./admin-dashboard";
 
 export default async function AdminPage({
   params,
 }: PageProps<"/[tenant]/admin">) {
   const { tenant: slug } = await params;
-  const [tenant, stats] = await Promise.all([
-    orNull(api.tenant(slug)),
-    orNull(api.stats(slug)),
-  ]);
-  if (!tenant || !stats) {
+  const tenant = await orNull(api.tenant(slug));
+  if (!tenant) {
     notFound();
   }
+  const user = await requireUser(slug, `/${slug}/admin`, ["admin"]);
+  const stats = await (await serverApi()).stats(slug);
   const branch = tenant.branches.find((b) => b.id === stats.branch.id);
 
   return (
     <main className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-5">
-          <p className="text-sm font-semibold text-blue-600">OPEN ANTREE</p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">
-            Tenant Dashboard
-          </h1>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+          <div>
+            <p className="text-sm font-semibold text-blue-600">OPEN ANTREE</p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">
+              Tenant Dashboard
+            </h1>
+          </div>
+          <p className="text-right text-xs text-slate-500">
+            {user.name} ·{" "}
+            <Link
+              href={`/${slug}/operator`}
+              className="text-blue-600 hover:underline"
+            >
+              Operator Console
+            </Link>{" "}
+            · <LogoutButton slug={slug} />
+          </p>
         </div>
       </header>
 

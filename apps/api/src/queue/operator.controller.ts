@@ -7,17 +7,20 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard, Roles } from '../auth/auth.guard.js';
 import { CallNextDto } from './dto.js';
 import { QueueService } from './queue.service.js';
 
-// Operator endpoints. Not authenticated yet: anyone who knows a counter id can
-// operate it. Authentication is a later phase.
+// Staff endpoints: require a session for this tenant (operator or admin).
 @Controller('tenants/:slug')
+@UseGuards(AuthGuard)
 export class OperatorController {
   constructor(private readonly queue: QueueService) {}
 
   @Get('stats')
+  @Roles('admin')
   getStats(
     @Param('slug') slug: string,
     @Query('branchId', new ParseUUIDPipe({ optional: true })) branchId?: string,

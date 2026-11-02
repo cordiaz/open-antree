@@ -76,6 +76,14 @@ export type BranchStats = {
   averageWaitMinutes: number | null;
 };
 
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "operator";
+  tenant: { id: string; slug: string; name: string };
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -112,33 +120,55 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
 const tenantPath = (slug: string) => `/tenants/${encodeURIComponent(slug)}`;
 
-export const api = {
-  tenant: (slug: string) => apiFetch<TenantOverview>(tenantPath(slug)),
-  queue: (slug: string) => apiFetch<QueueBoard>(`${tenantPath(slug)}/queue`),
-  stats: (slug: string) => apiFetch<BranchStats>(`${tenantPath(slug)}/stats`),
-  ticket: (slug: string, ticketId: string) =>
-    apiFetch<Ticket>(`${tenantPath(slug)}/tickets/${ticketId}`),
-  takeTicket: (slug: string, serviceId: string, customerName?: string) =>
-    apiFetch<Ticket>(`${tenantPath(slug)}/tickets`, {
-      method: "POST",
-      body: JSON.stringify({ serviceId, customerName }),
-    }),
-  counter: (slug: string, counterId: string) =>
-    apiFetch<CounterConsole>(`${tenantPath(slug)}/counters/${counterId}`),
-  callNext: (slug: string, counterId: string) =>
-    apiFetch<{ ticket: Ticket | null }>(
-      `${tenantPath(slug)}/counters/${counterId}/call-next`,
-      { method: "POST" },
-    ),
-  transition: (
-    slug: string,
-    ticketId: string,
-    action: "start" | "complete" | "skip",
-  ) =>
-    apiFetch<Ticket>(`${tenantPath(slug)}/tickets/${ticketId}/${action}`, {
-      method: "POST",
-    }),
-};
+// `init` is merged into every request; server pages pass the incoming
+// request's cookies this way (see lib/server-api.ts).
+export function createApi(init: RequestInit = {}) {
+  const call = <T>(path: string, extra?: RequestInit) =>
+    apiFetch<T>(path, {
+      ...init,
+      ...extra,
+      headers: { ...init.headers, ...extra?.headers },
+    });
+
+  return {
+    tenant: (slug: string) => call<TenantOverview>(tenantPath(slug)),
+    queue: (slug: string) => call<QueueBoard>(`${tenantPath(slug)}/queue`),
+    stats: (slug: string) => call<BranchStats>(`${tenantPath(slug)}/stats`),
+    ticket: (slug: string, ticketId: string) =>
+      call<Ticket>(`${tenantPath(slug)}/tickets/${ticketId}`),
+    takeTicket: (slug: string, serviceId: string, customerName?: string) =>
+      call<Ticket>(`${tenantPath(slug)}/tickets`, {
+        method: "POST",
+        body: JSON.stringify({ serviceId, customerName }),
+      }),
+    counter: (slug: string, counterId: string) =>
+      call<CounterConsole>(`${tenantPath(slug)}/counters/${counterId}`),
+    callNext: (slug: string, counterId: string) =>
+      call<{ ticket: Ticket | null }>(
+        `${tenantPath(slug)}/counters/${counterId}/call-next`,
+        { method: "POST" },
+      ),
+    transition: (
+      slug: string,
+      ticketId: string,
+      action: "start" | "complete" | "skip",
+    ) =>
+      call<Ticket>(`${tenantPath(slug)}/tickets/${ticketId}/${action}`, {
+        method: "POST",
+      }),
+    me: (slug: string) => call<AuthUser>(`${tenantPath(slug)}/auth/me`),
+    login: (slug: string, email: string, password: string) =>
+      call<AuthUser>(`${tenantPath(slug)}/auth/login`, {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      }),
+    logout: (slug: string) =>
+      call<null>(`${tenantPath(slug)}/auth/logout`, { method: "POST" }),
+  };
+}
+
+// Browser-side client: cookies are sent automatically (same origin via /api).
+export const api = createApi();
 
 // For server pages: a missing tenant or counter should render the 404 page.
 export async function orNull<T>(promise: Promise<T>): Promise<T | null> {

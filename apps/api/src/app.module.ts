@@ -1,6 +1,7 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_PIPE } from '@nestjs/core';
+import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { QueueModule } from './queue/queue.module.js';
@@ -16,6 +17,7 @@ import { RedisModule } from './redis/redis.module.js';
     DatabaseModule,
     RedisModule,
     HealthModule,
+    AuthModule,
     QueueModule,
   ],
   providers: [

@@ -145,3 +145,25 @@ export const tickets = pgTable(
     index('tickets_tenant_id_idx').on(t.tenantId),
   ],
 );
+
+export const userRole = pgEnum('user_role', ['admin', 'operator']);
+
+// Staff accounts. Customers don't log in.
+export const users = pgTable(
+  'users',
+  {
+    id: id(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    // Stored lower-cased; unique within a tenant.
+    email: varchar('email', { length: 254 }).notNull(),
+    name: text('name').notNull(),
+    // scrypt hash, see src/auth/password.ts.
+    passwordHash: text('password_hash').notNull(),
+    role: userRole('role').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email)],
+);

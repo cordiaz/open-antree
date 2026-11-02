@@ -11,7 +11,9 @@ import {
   counters,
   services,
   tenants,
+  users,
 } from './../src/database/schema.js';
+import { hashPassword } from './../src/auth/password.js';
 
 // Integration test against the real PostgreSQL from docker-compose.yml
 // (DATABASE_URL in .env). Each run creates its own tenants and deletes them after.
@@ -23,13 +25,20 @@ type Fixture = {
   coloringId: string;
   counter1Id: string;
   counter2Id: string;
+  // Logged-in clients (cookies kept between requests).
+  admin: TestAgent;
+  operator: TestAgent;
 };
+
+type TestAgent = ReturnType<typeof request.agent>;
+const PASSWORD = 'test-password';
 
 describe('Queue (e2e, real database)', () => {
   let app: INestApplication<App>;
   let database: DatabaseService;
   let main: Fixture;
   let other: Fixture;
+  let passwordHash: string;
 
   async function createTenant(): Promise<Fixture> {
     const db = database.db;
@@ -68,7 +77,27 @@ describe('Queue (e2e, real database)', () => {
         { tenantId: tenant.id, branchId: branch.id, name: 'Counter 02' },
       ])
       .returning();
+    await db.insert(users).values(
+      (['admin', 'operator'] as const).map((role) => ({
+        tenantId: tenant.id,
+        email: `${role}@${slug}.test`,
+        name: role,
+        passwordHash,
+        role,
+      })),
+    );
+    const login = async (role: 'admin' | 'operator') => {
+      const agent = request.agent(app.getHttpServer());
+      await agent
+        .post(`/tenants/${slug}/auth/login`)
+        .send({ email: `${role}@${slug}.test`, password: PASSWORD })
+        .expect(200);
+      return agent;
+    };
+
     return {
+      admin: await login('admin'),
+      operator: await login('operator'),
       slug,
       tenantId: tenant.id,
       haircutId: haircut.id,
@@ -89,6 +118,7 @@ describe('Queue (e2e, real database)', () => {
     app = moduleRef.createNestApplication();
     await app.init();
     database = app.get(DatabaseService);
+    passwordHash = await hashPassword(PASSWORD);
     main = await createTenant();
     other = await createTenant();
   });
@@ -170,24 +200,26 @@ describe('Queue (e2e, real database)', () => {
   it('runs the operator flow: call, conflict, start, complete', async () => {
     const counterUrl = `/tenants/${main.slug}/counters/${main.counter1Id}`;
 
-    const called = await api().post(`${counterUrl}/call-next`).expect(200);
+    const called = await main.operator
+      .post(`${counterUrl}/call-next`)
+      .expect(200);
     expect(called.body.ticket.code).toBe('A001');
     expect(called.body.ticket.status).toBe('called');
     expect(called.body.ticket.counter).toBe('Counter 01');
 
     // The counter must finish its current ticket before calling another.
-    await api().post(`${counterUrl}/call-next`).expect(409);
+    await main.operator.post(`${counterUrl}/call-next`).expect(409);
 
     const ticketUrl = `/tenants/${main.slug}/tickets/${called.body.ticket.id}`;
-    await api().post(`${ticketUrl}/start`).expect(200);
-    const done = await api().post(`${ticketUrl}/complete`).expect(200);
+    await main.operator.post(`${ticketUrl}/start`).expect(200);
+    const done = await main.operator.post(`${ticketUrl}/complete`).expect(200);
     expect(done.body.status).toBe('completed');
     expect(done.body.completedAt).not.toBeNull();
 
     // Completing twice is a state conflict, not a success.
-    await api().post(`${ticketUrl}/complete`).expect(409);
+    await main.operator.post(`${ticketUrl}/complete`).expect(409);
 
-    const board = await api().get(counterUrl).expect(200);
+    const board = await main.operator.get(counterUrl).expect(200);
     expect(board.body.current).toBeNull();
     // FIFO: the waiting line follows ticket numbers, even for the concurrent burst.
     expect(board.body.waiting.map((t: any) => t.code)).toEqual([
@@ -201,14 +233,20 @@ describe('Queue (e2e, real database)', () => {
 
   it('lets two counters call at the same time without sharing a ticket', async () => {
     const [a, b] = await Promise.all([
-      api().post(`/tenants/${main.slug}/counters/${main.counter1Id}/call-next`),
-      api().post(`/tenants/${main.slug}/counters/${main.counter2Id}/call-next`),
+      main.operator.post(
+        `/tenants/${main.slug}/counters/${main.counter1Id}/call-next`,
+      ),
+      main.operator.post(
+        `/tenants/${main.slug}/counters/${main.counter2Id}/call-next`,
+      ),
     ]);
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
     expect(a.body.ticket.code).not.toBe(b.body.ticket.code);
 
-    const board = await api().get(`/tenants/${main.slug}/queue`).expect(200);
+    const board = await main.operator
+      .get(`/tenants/${main.slug}/queue`)
+      .expect(200);
     const haircut = board.body.services.find(
       (s: any) => s.ticketPrefix === 'A',
     );
@@ -218,27 +256,29 @@ describe('Queue (e2e, real database)', () => {
         .sort((x: string, y: string) => x.localeCompare(y)),
     ).toEqual(['Counter 01', 'Counter 02']);
 
-    await api()
+    await main.operator
       .post(`/tenants/${main.slug}/tickets/${a.body.ticket.id}/skip`)
       .expect(200);
-    await api()
+    await main.operator
       .post(`/tenants/${main.slug}/tickets/${b.body.ticket.id}/complete`)
       .expect(200);
   });
 
   it('can call a specific service only', async () => {
-    const { body } = await api()
+    const { body } = await main.operator
       .post(`/tenants/${main.slug}/counters/${main.counter1Id}/call-next`)
       .send({ serviceId: main.coloringId })
       .expect(200);
     expect(body.ticket.code).toBe('B001');
-    await api()
+    await main.operator
       .post(`/tenants/${main.slug}/tickets/${body.ticket.id}/complete`)
       .expect(200);
   });
 
   it('reports today’s stats for the admin dashboard', async () => {
-    const { body } = await api().get(`/tenants/${main.slug}/stats`).expect(200);
+    const { body } = await main.admin
+      .get(`/tenants/${main.slug}/stats`)
+      .expect(200);
     // A001-A011 + B001 taken; A001, one burst ticket and B001 completed,
     // one burst ticket skipped.
     expect(body.counters).toBe(2);
@@ -250,12 +290,14 @@ describe('Queue (e2e, real database)', () => {
     });
     expect(body.averageWaitMinutes).toBe(0);
 
-    const empty = await api().get(`/tenants/${other.slug}/stats`).expect(200);
+    const empty = await other.admin
+      .get(`/tenants/${other.slug}/stats`)
+      .expect(200);
     expect(empty.body.averageWaitMinutes).toBeNull();
   });
 
   it('returns ticket null when nobody is waiting', async () => {
-    const { body } = await api()
+    const { body } = await other.operator
       .post(`/tenants/${other.slug}/counters/${other.counter1Id}/call-next`)
       .expect(200);
     expect(body).toEqual({ ticket: null });
@@ -265,8 +307,8 @@ describe('Queue (e2e, real database)', () => {
     const ticket = await takeTicket(main, main.haircutId).expect(201);
     const foreign = `/tenants/${other.slug}/tickets/${ticket.body.id}`;
     await api().get(foreign).expect(404);
-    await api().post(`${foreign}/complete`).expect(404);
-    await api()
+    await other.operator.post(`${foreign}/complete`).expect(404);
+    await other.operator
       .post(`/tenants/${other.slug}/counters/${main.counter1Id}/call-next`)
       .expect(404);
   });
