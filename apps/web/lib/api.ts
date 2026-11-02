@@ -84,6 +84,31 @@ export type AuthUser = {
   tenant: { id: string; slug: string; name: string };
 };
 
+export type ManagedService = {
+  id: string;
+  branchId: string;
+  name: string;
+  ticketPrefix: string;
+  avgServiceMinutes: number;
+  isActive: boolean;
+};
+
+export type ManagedCounter = {
+  id: string;
+  branchId: string;
+  name: string;
+  isActive: boolean;
+};
+
+export type StaffUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "operator";
+  isActive: boolean;
+  createdAt: string;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -164,6 +189,66 @@ export function createApi(init: RequestInit = {}) {
       }),
     logout: (slug: string) =>
       call<null>(`${tenantPath(slug)}/auth/logout`, { method: "POST" }),
+
+    // Admin-only tenant configuration.
+    admin: {
+      services: (slug: string) =>
+        call<ManagedService[]>(`${tenantPath(slug)}/admin/services`),
+      createService: (
+        slug: string,
+        body: Omit<ManagedService, "id" | "isActive">,
+      ) =>
+        call<ManagedService>(`${tenantPath(slug)}/admin/services`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      updateService: (
+        slug: string,
+        id: string,
+        body: Partial<Omit<ManagedService, "id" | "branchId">>,
+      ) =>
+        call<ManagedService>(`${tenantPath(slug)}/admin/services/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+      counters: (slug: string) =>
+        call<ManagedCounter[]>(`${tenantPath(slug)}/admin/counters`),
+      createCounter: (slug: string, body: { branchId: string; name: string }) =>
+        call<ManagedCounter>(`${tenantPath(slug)}/admin/counters`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      updateCounter: (
+        slug: string,
+        id: string,
+        body: { name?: string; isActive?: boolean },
+      ) =>
+        call<ManagedCounter>(`${tenantPath(slug)}/admin/counters/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+      users: (slug: string) =>
+        call<StaffUser[]>(`${tenantPath(slug)}/admin/users`),
+      createUser: (
+        slug: string,
+        body: Pick<StaffUser, "email" | "name" | "role"> & { password: string },
+      ) =>
+        call<StaffUser>(`${tenantPath(slug)}/admin/users`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      updateUser: (
+        slug: string,
+        id: string,
+        body: Partial<Pick<StaffUser, "name" | "role" | "isActive">> & {
+          password?: string;
+        },
+      ) =>
+        call<StaffUser>(`${tenantPath(slug)}/admin/users/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+    },
   };
 }
 

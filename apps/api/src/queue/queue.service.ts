@@ -24,6 +24,21 @@ const ACTIVE_STATUSES: TicketStatus[] = ['called', 'serving'];
 
 export type TicketAction = 'start' | 'complete' | 'skip';
 
+// For user-facing error messages.
+const ACTION_LABEL: Record<TicketAction, string> = {
+  start: 'mulai dilayani',
+  complete: 'diselesaikan',
+  skip: 'dilewati',
+};
+const STATUS_LABEL: Record<TicketStatus, string> = {
+  waiting: 'menunggu',
+  called: 'dipanggil',
+  serving: 'sedang dilayani',
+  completed: 'selesai',
+  skipped: 'dilewati',
+  cancelled: 'dibatalkan',
+};
+
 const TRANSITIONS: Record<
   TicketAction,
   { from: TicketStatus[]; to: TicketStatus; stamp: keyof Ticket }
@@ -53,7 +68,7 @@ export class QueueService {
       .from(tenants)
       .where(eq(tenants.slug, slug));
     if (!tenant) {
-      throw new NotFoundException(`Tenant "${slug}" not found`);
+      throw new NotFoundException(`Tenant "${slug}" tidak ditemukan`);
     }
     return tenant;
   }
@@ -175,7 +190,7 @@ export class QueueService {
         ),
       );
     if (!service) {
-      throw new NotFoundException('Service not found');
+      throw new NotFoundException('Layanan tidak ditemukan');
     }
 
     const serviceDate = serviceDateFor(tenant.timezone);
@@ -291,7 +306,7 @@ export class QueueService {
           ),
         );
       if (!service) {
-        throw new NotFoundException('Service not found at this branch');
+        throw new NotFoundException('Layanan tidak ditemukan di cabang ini');
       }
     }
 
@@ -317,7 +332,7 @@ export class QueueService {
         .limit(1);
       if (active) {
         throw new ConflictException(
-          `Counter is still handling ${active.code}; complete or skip it first`,
+          `Loket masih menangani ${active.code}; selesaikan atau lewati dulu`,
         );
       }
 
@@ -371,7 +386,7 @@ export class QueueService {
     if (!updated) {
       const existing = await this.findTicket(tenant.id, ticketId);
       throw new ConflictException(
-        `Cannot ${action} ticket ${existing.code} while it is ${existing.status}`,
+        `Tiket ${existing.code} tidak bisa ${ACTION_LABEL[action]} karena statusnya ${STATUS_LABEL[existing.status]}`,
       );
     }
     return this.describeTicket(updated);
@@ -458,7 +473,7 @@ export class QueueService {
       .orderBy(asc(branches.createdAt))
       .limit(1);
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Cabang tidak ditemukan');
     }
     return branch;
   }
@@ -472,7 +487,7 @@ export class QueueService {
       .from(tickets)
       .where(and(eq(tickets.id, ticketId), eq(tickets.tenantId, tenantId)));
     if (!ticket) {
-      throw new NotFoundException('Ticket not found');
+      throw new NotFoundException('Tiket tidak ditemukan');
     }
     return ticket;
   }
@@ -489,7 +504,7 @@ export class QueueService {
         ),
       );
     if (!counter) {
-      throw new NotFoundException('Counter not found');
+      throw new NotFoundException('Loket tidak ditemukan');
     }
     return counter;
   }
