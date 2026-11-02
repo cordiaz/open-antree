@@ -10,6 +10,8 @@ export type Session = {
 
 // Sessions live in Redis under a hash of the token, so a Redis dump does not
 // contain usable tokens. Logging out deletes the key immediately.
+// Each user also has a set of their session keys, so all of a user's sessions
+// can be ended at once (e.g. after a password change).
 @Injectable()
 export class SessionService {
   readonly ttlSeconds: number;
@@ -23,12 +25,14 @@ export class SessionService {
 
   async create(session: Session): Promise<string> {
     const token = randomBytes(32).toString('base64url');
-    await this.redis.client.set(
-      key(token),
-      JSON.stringify(session),
-      'EX',
-      this.ttlSeconds,
-    );
+    const sessionKey = key(token);
+    const userKey = userSessionsKey(session.userId);
+    await this.redis.client
+      .multi()
+      .set(sessionKey, JSON.stringify(session), 'EX', this.ttlSeconds)
+      .sadd(userKey, sessionKey)
+      .expire(userKey, this.ttlSeconds)
+      .exec();
     return token;
   }
 
@@ -38,10 +42,36 @@ export class SessionService {
   }
 
   async destroy(token: string): Promise<void> {
-    await this.redis.client.del(key(token));
+    const session = await this.get(token);
+    const sessionKey = key(token);
+    const pipeline = this.redis.client.multi().del(sessionKey);
+    if (session) {
+      pipeline.srem(userSessionsKey(session.userId), sessionKey);
+    }
+    await pipeline.exec();
+  }
+
+  // Ends every session of a user, optionally keeping the one making the request.
+  async destroyAllForUser(userId: string, exceptToken?: string): Promise<void> {
+    const userKey = userSessionsKey(userId);
+    const keep = exceptToken ? key(exceptToken) : null;
+    const sessionKeys = (await this.redis.client.smembers(userKey)).filter(
+      (k) => k !== keep,
+    );
+    if (sessionKeys.length > 0) {
+      await this.redis.client
+        .multi()
+        .del(...sessionKeys)
+        .srem(userKey, ...sessionKeys)
+        .exec();
+    }
   }
 }
 
 function key(token: string): string {
   return `session:${createHash('sha256').update(token).digest('hex')}`;
+}
+
+function userSessionsKey(userId: string): string {
+  return `user-sessions:${userId}`;
 }

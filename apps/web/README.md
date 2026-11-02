@@ -21,6 +21,9 @@ Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the
 | `/[tenant]/login` | Staff | Login for operators and admins; returns to the page that asked for it |
 | `/[tenant]/operator` | Operators, admins | Choose a counter, then call / start / skip / complete tickets |
 | `/[tenant]/admin` | Admins | Today's numbers for the branch and business details |
+| `/[tenant]/admin/services` | Admins | Add services, edit name / prefix / average minutes, activate or deactivate |
+| `/[tenant]/admin/counters` | Admins | Add, rename, activate or deactivate counters |
+| `/[tenant]/admin/users` | Admins | Add staff accounts, change name / role, reset passwords, activate or deactivate |
 
 Pages render their first data on the server and then refresh by polling (queue 5 s, operator 3 s, admin 10 s).
 

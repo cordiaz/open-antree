@@ -67,7 +67,26 @@ Staff endpoints (counters, ticket transitions, stats) require a session for the 
 - Deactivating a user (`users.is_active = false`) rejects their existing sessions immediately.
 - After 5 failed logins an account is locked for 15 minutes (`429`).
 
-Create staff accounts with (the password comes from the environment so it stays out of shell history):
+## Admin management
+
+Admin-only endpoints for configuring a tenant. Nothing is hard-deleted: services and counters are referenced by ticket history, so they are deactivated instead (inactive items disappear from the customer and operator pages).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET / POST | `/tenants/:slug/admin/services` | List (including inactive) / create `{ branchId, name, ticketPrefix, avgServiceMinutes }` |
+| PATCH | `/tenants/:slug/admin/services/:id` | Change `name`, `ticketPrefix` (new tickets only), `avgServiceMinutes`, `isActive` |
+| GET / POST | `/tenants/:slug/admin/counters` | List / create `{ branchId, name }` |
+| PATCH | `/tenants/:slug/admin/counters/:id` | Change `name`, `isActive`; a counter handling a ticket can't be deactivated (`409`) |
+| GET / POST | `/tenants/:slug/admin/users` | List (never includes password hashes) / create `{ email, name, role, password }` |
+| PATCH | `/tenants/:slug/admin/users/:id` | Change `name`, `role`, `isActive`, `password` |
+
+- Duplicate prefixes, counter names (per branch) and emails (per tenant) return `409`.
+- An admin can't deactivate or demote their own account, so a tenant always keeps an active admin.
+- Setting a password or deactivating a user ends all of that user's sessions (an admin changing their own password keeps the current one).
+
+The admin pages in `apps/web` cover all of this. For the first admin of a new tenant, or without the web app, use the script:
+
+(The password comes from the environment so it stays out of shell history.)
 
 ```bash
 USER_PASSWORD='...' pnpm user:create --tenant salon-mawar --email budi@example.com --name "Budi" --role operator
@@ -85,7 +104,7 @@ The demo seed creates `admin@salon-mawar.test` and `operator@salon-mawar.test` w
 | `pnpm lint` | oxlint (type-aware) |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm test` | Unit tests (vitest) |
-| `pnpm test:e2e` | End-to-end tests (vitest + supertest); `test/queue.e2e-spec.ts` needs the docker-compose PostgreSQL running |
+| `pnpm test:e2e` | End-to-end tests (vitest + supertest); most need the docker-compose PostgreSQL and Redis running |
 | `pnpm db:generate` | Generate a SQL migration from schema changes |
 | `pnpm db:migrate` | Apply pending migrations |
 | `pnpm db:seed` | Recreate the demo tenant `salon-mawar` with today's tickets |
