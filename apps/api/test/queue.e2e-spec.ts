@@ -237,6 +237,23 @@ describe('Queue (e2e, real database)', () => {
       .expect(200);
   });
 
+  it('reports today’s stats for the admin dashboard', async () => {
+    const { body } = await api().get(`/tenants/${main.slug}/stats`).expect(200);
+    // A001-A011 + B001 taken; A001, one burst ticket and B001 completed,
+    // one burst ticket skipped.
+    expect(body.counters).toBe(2);
+    expect(body.tickets).toEqual({
+      waiting: 8,
+      serving: 0,
+      completed: 3,
+      skipped: 1,
+    });
+    expect(body.averageWaitMinutes).toBe(0);
+
+    const empty = await api().get(`/tenants/${other.slug}/stats`).expect(200);
+    expect(empty.body.averageWaitMinutes).toBeNull();
+  });
+
   it('returns ticket null when nobody is waiting', async () => {
     const { body } = await api()
       .post(`/tenants/${other.slug}/counters/${other.counter1Id}/call-next`)

@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CallNextDto } from './dto.js';
 import { QueueService } from './queue.service.js';
@@ -15,6 +16,14 @@ import { QueueService } from './queue.service.js';
 @Controller('tenants/:slug')
 export class OperatorController {
   constructor(private readonly queue: QueueService) {}
+
+  @Get('stats')
+  getStats(
+    @Param('slug') slug: string,
+    @Query('branchId', new ParseUUIDPipe({ optional: true })) branchId?: string,
+  ) {
+    return this.queue.getStats(slug, branchId);
+  }
 
   @Get('counters/:counterId')
   getCounter(
