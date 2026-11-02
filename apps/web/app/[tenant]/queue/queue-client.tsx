@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type QueueBoard, type Ticket } from "@/lib/api";
+import { ApiError, api, type QueueBoard, type Ticket } from "@/lib/api";
 import { formatMinutes, statusLabel } from "@/lib/labels";
 import { usePolling } from "@/lib/use-polling";
-
-const POLL_MS = 5000;
+import { FALLBACK_POLL_MS, useQueueEvents } from "@/lib/use-queue-events";
+import { LiveIndicator } from "../live-indicator";
 const FINISHED: Ticket["status"][] = ["completed", "skipped", "cancelled"];
 
 // The customer's ticket id is kept in localStorage so a refresh keeps it.
@@ -41,9 +41,16 @@ export function QueueClient({
   const fetchQueue = useCallback(() => api.queue(slug), [slug]);
   const { data: queue, refresh: refreshQueue } = usePolling(
     fetchQueue,
-    POLL_MS,
+    FALLBACK_POLL_MS,
     initialQueue,
   );
+  // Bumped on every live event so the customer's own ticket reloads too.
+  const [changeCount, setChangeCount] = useState(0);
+  const onQueueChange = useCallback(() => {
+    void refreshQueue();
+    setChangeCount((n) => n + 1);
+  }, [refreshQueue]);
+  const connected = useQueueEvents(slug, onQueueChange);
 
   const [serviceId, setServiceId] = useState(
     initialQueue.services[0]?.id ?? "",
@@ -71,20 +78,23 @@ export function QueueClient({
         } else {
           setTicket(latest);
         }
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        // Forget the ticket only if the API says it doesn't exist. A network
+        // error (flaky connection, or a request cut off by a page reload) must
+        // not make the customer lose their number; the next refresh retries.
+        if (!cancelled && error instanceof ApiError && error.status === 404) {
           storeTicketId(slug, null);
           setTicket(null);
         }
       }
     };
     void load();
-    const id = setInterval(load, POLL_MS);
+    const id = setInterval(load, FALLBACK_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [slug, ticket?.id, queue.serviceDate]);
+  }, [slug, ticket?.id, queue.serviceDate, changeCount]);
 
   async function takeTicket() {
     setSubmitting(true);
@@ -196,6 +206,9 @@ export function QueueClient({
           <p className="mt-1 text-2xl font-semibold text-blue-600">
             {formatMinutes(selected.estimatedWaitMinutes)}
           </p>
+          <div className="mt-6">
+            <LiveIndicator connected={connected} />
+          </div>
         </div>
       )}
     </>

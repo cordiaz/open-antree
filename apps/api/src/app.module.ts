@@ -4,6 +4,7 @@ import { APP_PIPE } from '@nestjs/core';
 import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { RedisModule } from './redis/redis.module.js';
@@ -21,6 +22,7 @@ import { RedisModule } from './redis/redis.module.js';
     AuthModule,
     QueueModule,
     AdminModule,
+    EventsModule,
   ],
   providers: [
     // Registered here rather than in main.ts so e2e tests get the same validation.

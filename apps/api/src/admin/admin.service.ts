@@ -9,6 +9,7 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { hashPassword } from '../auth/password.js';
 import { SessionService } from '../auth/session.service.js';
 import { DatabaseService } from '../database/database.service.js';
+import { EventsService } from '../events/events.service.js';
 import {
   branches,
   counters,
@@ -36,6 +37,7 @@ export class AdminService {
   constructor(
     private readonly database: DatabaseService,
     private readonly sessions: SessionService,
+    private readonly events: EventsService,
   ) {}
 
   private get db() {
@@ -67,6 +69,7 @@ export class AdminService {
         .returning(serviceColumns),
       `Prefix ${dto.ticketPrefix} sudah dipakai layanan lain di cabang ini`,
     );
+    await this.configChanged(admin, service.branchId);
     return service;
   }
 
@@ -88,6 +91,7 @@ export class AdminService {
     if (!service) {
       throw new NotFoundException('Layanan tidak ditemukan');
     }
+    await this.configChanged(admin, service.branchId);
     return service;
   }
 
@@ -111,6 +115,7 @@ export class AdminService {
         .returning(counterColumns),
       `Loket bernama "${name}" sudah ada di cabang ini`,
     );
+    await this.configChanged(admin, counter.branchId);
     return counter;
   }
 
@@ -148,6 +153,7 @@ export class AdminService {
     if (!counter) {
       throw new NotFoundException('Loket tidak ditemukan');
     }
+    await this.configChanged(admin, counter.branchId);
     return counter;
   }
 
@@ -219,8 +225,17 @@ export class AdminService {
         id,
         id === admin.id ? (currentToken ?? undefined) : undefined,
       );
+      await this.events.publish(admin.tenant.id, { type: 'staff.updated' });
     }
     return user;
+  }
+
+  // Services and counters appear on customer and operator pages.
+  private configChanged(admin: AuthUser, branchId: string) {
+    return this.events.publish(admin.tenant.id, {
+      type: 'config.updated',
+      branchId,
+    });
   }
 
   private async assertBranch(admin: AuthUser, branchId: string) {
