@@ -26,14 +26,14 @@ export default function HomePage() {
             </a>
 
             <a
-              href="/operator"
+              href="/salon-mawar/operator"
               className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Operator
             </a>
 
             <a
-              href="/admin"
+              href="/salon-mawar/admin"
               className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Admin

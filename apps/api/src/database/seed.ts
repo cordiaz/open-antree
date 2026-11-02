@@ -73,19 +73,28 @@ try {
       .returning();
 
     const base = { tenantId, branchId, serviceDate: today };
-    const now = new Date();
+    // Spread timestamps over the past few hours so the dashboard's average
+    // wait looks realistic; creation order matches ticket numbers.
+    const minutesAgo = (minutes: number) =>
+      new Date(Date.now() - minutes * 60_000);
 
     await tx.insert(schema.tickets).values([
-      // A001-A021 already served today.
-      ...Array.from({ length: 21 }, (_, i) => ({
-        ...base,
-        serviceId: haircut.id,
-        counterId: counter1.id,
-        number: i + 1,
-        code: ticketCode('A', i + 1),
-        status: 'completed' as const,
-        completedAt: now,
-      })),
+      // A001-A021 already served today, each called ~12 minutes after taking it.
+      ...Array.from({ length: 21 }, (_, i) => {
+        const created = (21 - i) * 6 + 44;
+        return {
+          ...base,
+          serviceId: haircut.id,
+          counterId: counter1.id,
+          number: i + 1,
+          code: ticketCode('A', i + 1),
+          status: 'completed' as const,
+          createdAt: minutesAgo(created),
+          calledAt: minutesAgo(created - 12),
+          servedAt: minutesAgo(created - 12),
+          completedAt: minutesAgo(created - 18),
+        };
+      }),
       // A022 is being served at Counter 01.
       {
         ...base,
@@ -94,8 +103,9 @@ try {
         number: 22,
         code: ticketCode('A', 22),
         status: 'serving' as const,
-        calledAt: now,
-        servedAt: now,
+        createdAt: minutesAgo(44),
+        calledAt: minutesAgo(30),
+        servedAt: minutesAgo(30),
       },
       // A023-A026 are waiting.
       ...[23, 24, 25, 26].map((number) => ({
@@ -104,6 +114,7 @@ try {
         number,
         code: ticketCode('A', number),
         status: 'waiting' as const,
+        createdAt: minutesAgo((27 - number) * 5),
       })),
       {
         ...base,
@@ -112,8 +123,9 @@ try {
         number: 1,
         code: ticketCode('B', 1),
         status: 'serving' as const,
-        calledAt: now,
-        servedAt: now,
+        createdAt: minutesAgo(40),
+        calledAt: minutesAgo(25),
+        servedAt: minutesAgo(25),
       },
     ]);
   });

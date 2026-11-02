@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# web
 
-## Getting Started
+Open Antree frontend, built with Next.js (App Router) and Tailwind CSS. All data comes from `apps/api`.
 
-First, run the development server:
+## Development
+
+Start the API first (see `apps/api/README.md`), then from the monorepo root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm --filter web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the pages below work for the tenant `salon-mawar`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Pages
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Path | For | Description |
+| --- | --- | --- |
+| `/` | Everyone | Landing page |
+| `/[tenant]/queue` | Customers | Pick a service, take a ticket, follow its status (ticket is remembered in the browser) |
+| `/[tenant]/operator` | Operators | Choose a counter, then call / start / skip / complete tickets |
+| `/[tenant]/admin` | Tenant admins | Today's numbers for the branch and business details |
 
-## Learn More
+Pages render their first data on the server and then refresh by polling (queue 5 s, operator 3 s, admin 10 s).
 
-To learn more about Next.js, take a look at the following resources:
+> The operator and admin pages have no login yet. Don't expose them publicly until authentication is added.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Talking to the API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Server components call the API directly at `API_URL` (default `http://localhost:4000`).
+- The browser calls `/api/...` on the web origin; `next.config.ts` rewrites it to `API_URL`, so no CORS setup or build-time URL is needed.
 
-## Deploy on Vercel
+Set `API_URL` in `apps/web/.env.local` or the environment if the API runs elsewhere.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The typed client lives in `lib/api.ts`.

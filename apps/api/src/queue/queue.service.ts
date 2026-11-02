@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
 import {
   branches,
@@ -110,21 +110,7 @@ export class QueueService {
   // Public queue board for one branch (the tenant's first branch by default).
   async getQueue(slug: string, branchId?: string) {
     const tenant = await this.getTenant(slug);
-    const [branch] = await this.db
-      .select()
-      .from(branches)
-      .where(
-        and(
-          eq(branches.tenantId, tenant.id),
-          eq(branches.isActive, true),
-          branchId ? eq(branches.id, branchId) : undefined,
-        ),
-      )
-      .orderBy(asc(branches.createdAt))
-      .limit(1);
-    if (!branch) {
-      throw new NotFoundException('Branch not found');
-    }
+    const branch = await this.findBranch(tenant.id, branchId);
 
     const serviceDate = serviceDateFor(tenant.timezone);
     const [serviceRows, openTickets] = await Promise.all([
@@ -389,6 +375,92 @@ export class QueueService {
       );
     }
     return this.describeTicket(updated);
+  }
+
+  // Today's figures for the admin dashboard of one branch.
+  async getStats(slug: string, branchId?: string) {
+    const tenant = await this.getTenant(slug);
+    const branch = await this.findBranch(tenant.id, branchId);
+    const serviceDate = serviceDateFor(tenant.timezone);
+
+    const [statusRows, [{ averageWaitMinutes }], [{ counterCount }]] =
+      await Promise.all([
+        this.db
+          .select({
+            status: tickets.status,
+            count: sql<number>`count(*)`.mapWith(Number),
+          })
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.branchId, branch.id),
+              eq(tickets.serviceDate, serviceDate),
+            ),
+          )
+          .groupBy(tickets.status),
+        // Time from taking a ticket to being called, for tickets called today.
+        this.db
+          .select({
+            averageWaitMinutes: sql<
+              number | null
+            >`round(avg(extract(epoch from ${tickets.calledAt} - ${tickets.createdAt})) / 60)`.mapWith(
+              (value) => (value === null ? null : Number(value)),
+            ),
+          })
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.branchId, branch.id),
+              eq(tickets.serviceDate, serviceDate),
+              isNotNull(tickets.calledAt),
+            ),
+          ),
+        this.db
+          .select({ counterCount: sql<number>`count(*)`.mapWith(Number) })
+          .from(counters)
+          .where(
+            and(eq(counters.branchId, branch.id), eq(counters.isActive, true)),
+          ),
+      ]);
+
+    const byStatus = (...statuses: TicketStatus[]) =>
+      statusRows
+        .filter((row) => statuses.includes(row.status))
+        .reduce((sum, row) => sum + row.count, 0);
+
+    return {
+      tenant: { slug: tenant.slug, name: tenant.name },
+      branch: { id: branch.id, name: branch.name },
+      serviceDate,
+      counters: counterCount,
+      tickets: {
+        waiting: byStatus('waiting'),
+        serving: byStatus(...ACTIVE_STATUSES),
+        completed: byStatus('completed'),
+        skipped: byStatus('skipped', 'cancelled'),
+      },
+      averageWaitMinutes,
+    };
+  }
+
+  // The requested branch, or the tenant's first active branch when none is given.
+  private async findBranch(tenantId: string, branchId?: string) {
+    const [branch] = await this.db
+      .select()
+      .from(branches)
+      .where(
+        and(
+          eq(branches.tenantId, tenantId),
+          eq(branches.isActive, true),
+          branchId ? eq(branches.id, branchId) : undefined,
+        ),
+      )
+      .orderBy(asc(branches.createdAt))
+      .limit(1);
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+    return branch;
   }
 
   private async findTicket(
