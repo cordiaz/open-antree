@@ -28,7 +28,11 @@ export default async function QueuePage({
             </p>
           </div>
 
-          <QueueClient slug={slug} initialQueue={queue} />
+          <QueueClient
+            slug={slug}
+            initialQueue={queue}
+            whatsapp={tenant.whatsapp}
+          />
         </div>
       </div>
     </main>

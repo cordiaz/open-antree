@@ -17,7 +17,7 @@ Open http://localhost:3000. With the demo seed (`pnpm --filter api db:seed`) the
 | Path | For | Description |
 | --- | --- | --- |
 | `/` | Everyone | Landing page |
-| `/[tenant]/queue` | Customers | Pick a service, take a ticket, follow its status (ticket is remembered in the browser) |
+| `/[tenant]/queue` | Customers | Pick a service, take a ticket, follow its status (ticket is remembered in the browser); optionally leave a WhatsApp number when the API has notifications on |
 | `/[tenant]/login` | Staff | Login for operators and admins; returns to the page that asked for it |
 | `/[tenant]/operator` | Operators, admins | Choose a counter, then call / start / skip / complete tickets |
 | `/[tenant]/admin` | Admins | Today's numbers for the branch and business details |

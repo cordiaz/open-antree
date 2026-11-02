@@ -34,9 +34,12 @@ function storeTicketId(slug: string, ticketId: string | null) {
 export function QueueClient({
   slug,
   initialQueue,
+  whatsapp,
 }: {
   slug: string;
   initialQueue: QueueBoard;
+  // Offer WhatsApp notifications (the API has a provider configured).
+  whatsapp: boolean;
 }) {
   const fetchQueue = useCallback(() => api.queue(slug), [slug]);
   const { data: queue, refresh: refreshQueue } = usePolling(
@@ -56,6 +59,7 @@ export function QueueClient({
     initialQueue.services[0]?.id ?? "",
   );
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -100,11 +104,10 @@ export function QueueClient({
     setSubmitting(true);
     setError(null);
     try {
-      const created = await api.takeTicket(
-        slug,
-        serviceId,
-        customerName.trim() || undefined,
-      );
+      const created = await api.takeTicket(slug, serviceId, {
+        customerName: customerName.trim() || undefined,
+        customerPhone: (whatsapp && customerPhone.trim()) || undefined,
+      });
       storeTicketId(slug, created.id);
       setTicket(created);
       void refreshQueue();
@@ -179,6 +182,34 @@ export function QueueClient({
             />
           </div>
 
+          {whatsapp && (
+            <div>
+              <label
+                htmlFor="phone"
+                className="mb-2 block text-sm font-medium text-slate-700"
+              >
+                Nomor WhatsApp (opsional)
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={24}
+                placeholder="0812-3456-7890"
+                aria-describedby="phone-help"
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-700 outline-none focus:border-blue-500"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+              />
+              <p id="phone-help" className="mt-1.5 text-xs text-slate-500">
+                Kami kirim pesan WhatsApp saat giliran Anda sudah dekat dan saat
+                nomor Anda dipanggil, jadi Anda tidak perlu menunggu di depan
+                loket.
+              </p>
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <button
@@ -244,6 +275,13 @@ function TicketCard({
         <p className="mt-1 text-sm text-slate-500">
           {ticket.ahead} orang di depan Anda ·{" "}
           {formatMinutes(ticket.estimatedWaitMinutes)}
+        </p>
+      )}
+      {ticket.whatsapp && !finished && (
+        <p
+          className={`mt-3 text-xs ${called ? "text-blue-100" : "text-slate-500"}`}
+        >
+          Notifikasi WhatsApp dikirim ke {ticket.whatsapp}
         </p>
       )}
       {finished && (
