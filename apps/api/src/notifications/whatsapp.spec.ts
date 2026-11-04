@@ -1,6 +1,7 @@
 import type { Mock } from 'vitest';
 import { renderMessage } from './messages.js';
 import {
+  ApiCoIdSender,
   createSender,
   FonnteSender,
   MetaSender,
@@ -139,8 +140,128 @@ describe('WhatsApp senders', () => {
     });
   });
 
+  describe('api.co.id', () => {
+    const sender = new ApiCoIdSender({
+      apiKey: 'apicoid-key',
+      phoneNumberId: 'wa-number-1',
+      templates: { near: 'antrean_dekat', called: 'antrean_dipanggil' },
+      language: 'id',
+      baseUrl: 'https://chat.api.co.id',
+    });
+
+    it('sends the template with params in order', async () => {
+      fetchMock.mockResolvedValue(
+        reply(200, {
+          success: true,
+          data: { message_id: 'msg-123', status: 'sent', channel: 'whatsapp' },
+        }),
+      );
+      await expect(sender.send(message)).resolves.toEqual({ id: 'msg-123' });
+
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('https://chat.api.co.id/api/v1/public/messages/send');
+      expect(init.headers).toMatchObject({
+        Authorization: 'Bearer apicoid-key',
+      });
+      expect(JSON.parse(init.body as string)).toEqual({
+        phone_number: '6281234567890',
+        channel: 'whatsapp',
+        message_type: 'template',
+        whatsapp_phone_number_id: 'wa-number-1',
+        template: {
+          name: 'antrean_dipanggil',
+          language: { code: 'id' },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'A023' },
+                { type: 'text', text: 'Counter 01' },
+                { type: 'text', text: 'Salon Mawar' },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    it('leaves out the sending number when not configured', async () => {
+      fetchMock.mockResolvedValue(reply(200, { success: true, data: {} }));
+      const auto = new ApiCoIdSender({
+        apiKey: 'k',
+        phoneNumberId: null,
+        templates: { near: 'a', called: 'b' },
+        language: 'id',
+        baseUrl: 'https://chat.api.co.id',
+      });
+      await expect(auto.send(message)).resolves.toEqual({ id: null });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).not.toHaveProperty(
+        'whatsapp_phone_number_id',
+      );
+    });
+
+    it('retries rate limits and server errors but not rejected requests', async () => {
+      fetchMock.mockResolvedValueOnce(
+        reply(429, {
+          error: { code: 'RateLimitExceeded', message: 'Too many requests' },
+        }),
+      );
+      await expect(sender.send(message)).rejects.toMatchObject({
+        message: 'api.co.id HTTP 429: RateLimitExceeded: Too many requests',
+        retryable: true,
+      });
+      fetchMock.mockResolvedValueOnce(reply(500, {}));
+      await expect(sender.send(message)).rejects.toMatchObject({
+        message: 'api.co.id HTTP 500: unknown error',
+        retryable: true,
+      });
+      fetchMock.mockResolvedValueOnce(
+        reply(400, {
+          error: {
+            code: 'ValidationError',
+            message: 'phone_number is required',
+            details: [],
+          },
+        }),
+      );
+      await expect(sender.send(message)).rejects.toMatchObject({
+        retryable: false,
+      });
+      fetchMock.mockResolvedValueOnce(
+        reply(200, {
+          success: false,
+          error: { message: 'Template not found' },
+        }),
+      );
+      await expect(sender.send(message)).rejects.toMatchObject({
+        message: 'api.co.id: Template not found',
+        retryable: false,
+      });
+    });
+  });
+
   describe('createSender', () => {
     const from = (env: Record<string, string>) => (key: string) => env[key];
+
+    it('builds the api.co.id sender with defaults', () => {
+      const sender = createSender(
+        from({
+          WHATSAPP_DRIVER: 'apicoid',
+          WHATSAPP_APICOID_API_KEY: 'k',
+          WHATSAPP_APICOID_TEMPLATE_NEAR: 'antrean_dekat',
+          WHATSAPP_APICOID_TEMPLATE_CALLED: 'antrean_dipanggil',
+        }),
+      );
+      expect(sender).toBeInstanceOf(ApiCoIdSender);
+      expect(sender).toMatchObject({
+        config: {
+          phoneNumberId: null,
+          language: 'id',
+          baseUrl: 'https://chat.api.co.id',
+        },
+      });
+    });
 
     it('is off unless configured', () => {
       expect(createSender(from({}))).toBeNull();
@@ -157,6 +278,11 @@ describe('WhatsApp senders', () => {
           from({ WHATSAPP_DRIVER: 'meta', WHATSAPP_META_TOKEN: 'x' }),
         ),
       ).toThrow('WHATSAPP_META_PHONE_NUMBER_ID is required');
+      expect(() =>
+        createSender(
+          from({ WHATSAPP_DRIVER: 'apicoid', WHATSAPP_APICOID_API_KEY: 'x' }),
+        ),
+      ).toThrow('WHATSAPP_APICOID_TEMPLATE_NEAR is required');
       expect(() => createSender(from({ WHATSAPP_DRIVER: 'sms' }))).toThrow(
         'Unknown WHATSAPP_DRIVER',
       );

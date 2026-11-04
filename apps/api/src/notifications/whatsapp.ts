@@ -155,6 +155,70 @@ export class MetaSender implements WhatsAppSender {
   }
 }
 
+export type ApiCoIdConfig = {
+  apiKey: string;
+  // Sending number; when unset api.co.id picks the account's number.
+  phoneNumberId: string | null;
+  templates: Record<NotificationKind, string>;
+  language: string;
+  baseUrl: string;
+};
+
+// api.co.id Chat API (https://docs.api.co.id/chat-api/), an official WhatsApp
+// Business API provider. Like Meta, it needs approved templates.
+export class ApiCoIdSender implements WhatsAppSender {
+  readonly name = 'apicoid';
+
+  constructor(private readonly config: ApiCoIdConfig) {}
+
+  async send(message: OutgoingMessage) {
+    const { apiKey, phoneNumberId, templates, language, baseUrl } = this.config;
+    const { response, body } = await post(
+      `${baseUrl}/api/v1/public/messages/send`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone_number: message.to,
+          channel: 'whatsapp',
+          message_type: 'template',
+          ...(phoneNumberId && { whatsapp_phone_number_id: phoneNumberId }),
+          template: {
+            name: templates[message.kind],
+            language: { code: language },
+            components: [
+              {
+                type: 'body',
+                parameters: message.params.map((text) => ({
+                  type: 'text',
+                  text,
+                })),
+              },
+            ],
+          },
+        }),
+      },
+    );
+    // Errors look like { error: { code, message, details } }.
+    const error = body?.error as
+      { code?: string; message?: string } | undefined;
+    const reason = [error?.code, error?.message].filter(Boolean).join(': ');
+    if (!response.ok) {
+      throw new SendError(
+        `api.co.id HTTP ${response.status}: ${reason || 'unknown error'}`,
+        retryableStatus(response.status),
+      );
+    }
+    if (body?.success === false) {
+      throw new SendError(`api.co.id: ${reason || 'unknown error'}`, false);
+    }
+    const data = body?.data as { message_id?: string } | undefined;
+    return { id: data?.message_id ?? null };
+  }
+}
+
 // Builds the sender for WHATSAPP_DRIVER, or null when notifications are off.
 // Missing settings fail at startup rather than on the first message.
 export function createSender(
@@ -186,9 +250,22 @@ export function createSender(
         language: get('WHATSAPP_META_LANGUAGE') ?? 'id',
         apiVersion: get('WHATSAPP_META_API_VERSION') ?? 'v23.0',
       });
+    case 'apicoid':
+      return new ApiCoIdSender({
+        apiKey: required('WHATSAPP_APICOID_API_KEY'),
+        phoneNumberId: get('WHATSAPP_APICOID_PHONE_NUMBER_ID') || null,
+        templates: {
+          near: required('WHATSAPP_APICOID_TEMPLATE_NEAR'),
+          called: required('WHATSAPP_APICOID_TEMPLATE_CALLED'),
+        },
+        language: get('WHATSAPP_APICOID_LANGUAGE') ?? 'id',
+        baseUrl: (
+          get('WHATSAPP_APICOID_BASE_URL') ?? 'https://chat.api.co.id'
+        ).replace(/\/+$/, ''),
+      });
     default:
       throw new Error(
-        `Unknown WHATSAPP_DRIVER "${driver}" (use off, log, fonnte or meta)`,
+        `Unknown WHATSAPP_DRIVER "${driver}" (use off, log, apicoid, meta or fonnte)`,
       );
   }
 }

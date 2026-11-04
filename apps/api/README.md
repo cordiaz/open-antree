@@ -145,12 +145,13 @@ Choose a provider with `WHATSAPP_DRIVER`:
 | --- | --- | --- |
 | `off` (default) | | The customer page doesn't ask for a number; numbers sent anyway are not stored |
 | `log` | | Prints messages to the API log; for development |
+| `apicoid` | `WHATSAPP_APICOID_API_KEY`, `WHATSAPP_APICOID_TEMPLATE_NEAR`, `WHATSAPP_APICOID_TEMPLATE_CALLED`, optional `WHATSAPP_APICOID_LANGUAGE` (`id`), `WHATSAPP_APICOID_PHONE_NUMBER_ID` (account default), `WHATSAPP_APICOID_BASE_URL` (`https://chat.api.co.id`) | [api.co.id Chat API](https://docs.api.co.id/chat-api/getting-started/), an official WhatsApp Business API provider. API keys are under Developers → API Keys; uses approved templates |
 | `fonnte` | `FONNTE_TOKEN` | [Fonnte](https://fonnte.com) sends free text from a linked WhatsApp number |
 | `meta` | `WHATSAPP_META_TOKEN`, `WHATSAPP_META_PHONE_NUMBER_ID`, `WHATSAPP_META_TEMPLATE_NEAR`, `WHATSAPP_META_TEMPLATE_CALLED`, optional `WHATSAPP_META_LANGUAGE` (`id`), `WHATSAPP_META_API_VERSION` (`v23.0`) | Official WhatsApp Cloud API. Business-initiated messages must use templates approved in WhatsApp Manager |
 
 Missing settings for the chosen driver stop the API at startup.
 
-For `meta`, create two **Utility** templates in Indonesian with positional body parameters, for example:
+For `apicoid` and `meta`, create two **Utility** templates in Indonesian with positional body parameters, for example:
 
 - near (`{{1}}` ticket code, `{{2}}` business name, `{{3}}` tickets ahead): *Nomor antrean {{1}} di {{2}} tinggal {{3}} nomor lagi sebelum dipanggil. Mohon bersiap dan tetap berada di sekitar lokasi.*
 - called (`{{1}}` ticket code, `{{2}}` counter, `{{3}}` business name): *Nomor antrean {{1}} sekarang dipanggil. Silakan menuju {{2}} di {{3}}.*
