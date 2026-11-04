@@ -154,7 +154,9 @@ Missing settings for the chosen driver stop the API at startup.
 For `apicoid` and `meta`, create two **Utility** templates in Indonesian with positional body parameters, for example:
 
 - near (`{{1}}` ticket code, `{{2}}` business name, `{{3}}` tickets ahead): *Nomor antrean {{1}} di {{2}} tinggal {{3}} nomor lagi sebelum dipanggil. Mohon bersiap dan tetap berada di sekitar lokasi.*
-- called (`{{1}}` ticket code, `{{2}}` counter, `{{3}}` business name): *Nomor antrean {{1}} sekarang dipanggil. Silakan menuju {{2}} di {{3}}.*
+- called (`{{1}}` ticket code, `{{2}}` counter, `{{3}}` business name): *Nomor antrean {{1}} sekarang dipanggil. Silakan menuju {{2}} di {{3}}. Terima kasih.*
+
+Meta rejects templates that start or end with a variable, and a rejected template name can't be reused.
 
 Free-text drivers (`log`, `fonnte`) send the same wording, greeting the customer by name when given.
 
