@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthModule } from './health/health.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { QueueModule } from './queue/queue.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { ReportsModule } from './reports/reports.module.js';
@@ -24,6 +25,7 @@ import { ReportsModule } from './reports/reports.module.js';
     QueueModule,
     AdminModule,
     ReportsModule,
+    NotificationsModule,
     EventsModule,
   ],
   providers: [

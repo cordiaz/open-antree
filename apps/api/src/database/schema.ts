@@ -167,3 +167,55 @@ export const users = pgTable(
   },
   (t) => [uniqueIndex('users_tenant_email_uq').on(t.tenantId, t.email)],
 );
+
+export const notificationKind = pgEnum('notification_kind', [
+  // The ticket is a few places from the front of its line.
+  'near',
+  // The ticket was called to a counter.
+  'called',
+]);
+
+export const notificationStatus = pgEnum('notification_status', [
+  'pending',
+  'sending',
+  'sent',
+  'failed',
+  // Not sent because it no longer applied (e.g. the ticket moved on).
+  'skipped',
+]);
+
+// WhatsApp messages to customers, written in the same request that triggers
+// them and delivered by a background worker (an outbox), so a slow or failing
+// provider never blocks the queue and messages survive restarts.
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: id(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    ticketId: uuid('ticket_id')
+      .notNull()
+      .references(() => tickets.id, { onDelete: 'cascade' }),
+    kind: notificationKind('kind').notNull(),
+    // Normalised to digits with country code, e.g. 6281234567890.
+    phone: varchar('phone', { length: 32 }).notNull(),
+    status: notificationStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // A worker that claimed the row; another may take over after this.
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    lastError: text('last_error'),
+    providerMessageId: text('provider_message_id'),
+    createdAt: createdAt(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (t) => [
+    // At most one message of each kind per ticket.
+    uniqueIndex('notifications_ticket_kind_uq').on(t.ticketId, t.kind),
+    index('notifications_status_next_idx').on(t.status, t.nextAttemptAt),
+    index('notifications_tenant_id_idx').on(t.tenantId),
+  ],
+);

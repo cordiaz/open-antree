@@ -54,6 +54,24 @@ export function AdminDashboard({
           </div>
         ))}
       </div>
+      <p className="mt-4 text-sm text-slate-500">
+        Notifikasi WhatsApp hari ini:{" "}
+        {stats.notifications ? (
+          <>
+            {stats.notifications.sent} terkirim
+            {stats.notifications.pending > 0 &&
+              ` · ${stats.notifications.pending} dalam antrean kirim`}
+            {stats.notifications.failed > 0 && (
+              <span className="text-red-600">
+                {" "}
+                · {stats.notifications.failed} gagal
+              </span>
+            )}
+          </>
+        ) : (
+          "nonaktif"
+        )}
+      </p>
     </>
   );
 }

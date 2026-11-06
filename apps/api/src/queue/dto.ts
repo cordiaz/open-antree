@@ -15,10 +15,11 @@ export class CreateTicketDto {
   @MaxLength(100)
   customerName?: string;
 
-  // Digits with an optional leading +, e.g. 081234567890 or +6281234567890.
+  // WhatsApp number for notifications, e.g. 0812-3456-7890 or +6281234567890;
+  // normalised by the service.
   @IsOptional()
-  @Matches(/^\+?[0-9]{8,15}$/, {
-    message: 'customerPhone must be 8-15 digits, optionally starting with +',
+  @Matches(/^\+?[0-9 ().-]{8,24}$/, {
+    message: 'Nomor WhatsApp tidak valid',
   })
   customerPhone?: string;
 }

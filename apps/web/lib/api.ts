@@ -13,6 +13,8 @@ export type TenantOverview = {
   slug: string;
   name: string;
   timezone: string;
+  // Whether customers can leave a WhatsApp number for notifications.
+  whatsapp: boolean;
   branches: {
     id: string;
     name: string;
@@ -50,6 +52,8 @@ export type Ticket = {
   counter: string | null;
   ahead: number;
   estimatedWaitMinutes: number;
+  // Masked WhatsApp number notifications go to, e.g. "••••7890".
+  whatsapp: string | null;
   createdAt: string;
   calledAt: string | null;
   servedAt: string | null;
@@ -74,6 +78,8 @@ export type BranchStats = {
     skipped: number;
   };
   averageWaitMinutes: number | null;
+  // Today's WhatsApp messages; null when notifications are off.
+  notifications: { sent: number; failed: number; pending: number } | null;
 };
 
 // Counts and averages (minutes) for a set of tickets; see apps/api reports.
@@ -189,10 +195,14 @@ export function createApi(init: RequestInit = {}) {
     stats: (slug: string) => call<BranchStats>(`${tenantPath(slug)}/stats`),
     ticket: (slug: string, ticketId: string) =>
       call<Ticket>(`${tenantPath(slug)}/tickets/${ticketId}`),
-    takeTicket: (slug: string, serviceId: string, customerName?: string) =>
+    takeTicket: (
+      slug: string,
+      serviceId: string,
+      customer: { customerName?: string; customerPhone?: string } = {},
+    ) =>
       call<Ticket>(`${tenantPath(slug)}/tickets`, {
         method: "POST",
-        body: JSON.stringify({ serviceId, customerName }),
+        body: JSON.stringify({ serviceId, ...customer }),
       }),
     counter: (slug: string, counterId: string) =>
       call<CounterConsole>(`${tenantPath(slug)}/counters/${counterId}`),

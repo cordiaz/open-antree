@@ -1,11 +1,16 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { and, asc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from '../events/events.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
+import { maskPhone, normalizePhone } from '../notifications/phone.js';
 import {
   branches,
   counters,
@@ -57,9 +62,13 @@ const TRANSITIONS: Record<
 // change another tenant's rows, even with a valid id.
 @Injectable()
 export class QueueService {
+  private readonly logger = new Logger(QueueService.name);
+
   constructor(
     private readonly database: DatabaseService,
     private readonly events: EventsService,
+    private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
   ) {}
 
   private get db() {
@@ -107,6 +116,8 @@ export class QueueService {
       slug: tenant.slug,
       name: tenant.name,
       timezone: tenant.timezone,
+      // Whether the customer page offers WhatsApp notifications.
+      whatsapp: this.notifications.enabled,
       branches: branchRows.map((branch) => ({
         id: branch.id,
         name: branch.name,
@@ -197,6 +208,19 @@ export class QueueService {
       throw new NotFoundException('Layanan tidak ditemukan');
     }
 
+    // Only kept when notifications are on; otherwise there's no use for it.
+    let customerPhone: string | undefined;
+    if (dto.customerPhone && this.notifications.enabled) {
+      customerPhone =
+        normalizePhone(
+          dto.customerPhone,
+          this.config.get<string>('PHONE_COUNTRY_CODE') || '62',
+        ) ?? undefined;
+      if (!customerPhone) {
+        throw new BadRequestException('Nomor WhatsApp tidak valid');
+      }
+    }
+
     const serviceDate = serviceDateFor(tenant.timezone);
     const ticket = await this.db.transaction(async (tx) => {
       // Serialise numbering per service per day so concurrent requests
@@ -228,7 +252,7 @@ export class QueueService {
           number,
           code: ticketCode(service.ticketPrefix, number),
           customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
+          customerPhone,
           // Taken after the lock (unlike now(), the transaction start), so
           // created_at order matches number order and call-next stays FIFO.
           createdAt: sql`clock_timestamp()`,
@@ -242,7 +266,14 @@ export class QueueService {
       branchId: ticket.branchId,
       ticketId: ticket.id,
     });
-    return this.describeTicket(ticket);
+    const described = await this.describeTicket(ticket);
+    // Only marks an unneeded "near" message; never fail the ticket over it.
+    await this.notifications
+      .ticketCreated(ticket, described.ahead)
+      .catch((error: unknown) =>
+        this.logger.warn(`Notification bookkeeping failed: ${String(error)}`),
+      );
+    return described;
   }
 
   async getTicket(slug: string, ticketId: string) {
@@ -369,12 +400,14 @@ export class QueueService {
         .set({ status: 'called', counterId: counter.id, calledAt: new Date() })
         .where(eq(tickets.id, next.id))
         .returning();
+      await this.notifications.ticketCalled(updated, tx);
       return updated;
     });
 
     if (!called) {
       return { ticket: null };
     }
+    this.notifications.kick();
     await this.events.publish(tenant.id, {
       type: 'ticket.called',
       branchId: called.branchId,
@@ -477,6 +510,10 @@ export class QueueService {
         skipped: byStatus('skipped', 'cancelled'),
       },
       averageWaitMinutes,
+      // WhatsApp messages for today's tickets; null when notifications are off.
+      notifications: this.notifications.enabled
+        ? await this.notifications.summary(branch.id, serviceDate)
+        : null,
     };
   }
 
@@ -571,6 +608,8 @@ export class QueueService {
       counter: counter?.name ?? null,
       ahead,
       estimatedWaitMinutes: ahead * service.avgServiceMinutes,
+      // Masked number WhatsApp updates go to, so customers can spot a typo.
+      whatsapp: ticket.customerPhone ? maskPhone(ticket.customerPhone) : null,
       createdAt: ticket.createdAt,
       calledAt: ticket.calledAt,
       servedAt: ticket.servedAt,
